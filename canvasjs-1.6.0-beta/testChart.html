@@ -1,0 +1,124 @@
+<!DOCTYPE HTML>
+<html>
+<head>
+<script type="text/javascript">
+window.onload = function () {
+	var chart = new CanvasJS.Chart("chartContainer",
+	{
+		data: [
+		{
+			type: "pie",
+			indexLabelFontFamily: "Garamond",
+			indexLabelFontSize: 20,
+			indexLabelFontWeight: "bold",
+			startAngle:0,
+			indexLabelFontColor: "MistyRose",
+			indexLabelLineColor: "darkgrey",
+			indexLabelPlacement: "inside",
+			toolTipContent: "{name}: {y} systems",
+			showInLegend: true,
+			indexLabel: "#percent%",
+			dataPoints: [
+				{ y: 126, name: "Technical", legendMarkerType: "triangle"},
+				{ y: 24, name: "Institional", legendMarkerType: "square"},
+				{ y: 15, name: "Website", legendMarkerType: "circle"}
+			]
+		}
+		]
+	});
+	chart.render();
+
+	var chart = new CanvasJS.Chart("chartContainer2",
+		{
+			theme: "theme3",
+                        animationEnabled: true,
+			title:{
+				text: "Crude Oil Reserves Vs Production, 2011",
+				fontSize: 30
+			},
+			toolTip: {
+				shared: true
+			},
+			axisX:{
+				title: "Source: U.S. Energy Information Administration"
+			},
+
+			axisY: {
+				title: "billion of barrels"
+			},
+			axisY2: {
+				title: "million barrels/day"
+			},
+
+			legend:{
+				verticalAlign: "top",
+				horizontalAlign: "center"
+			},
+			data: [ 
+			{
+				type: "column",	
+				name: "Proven Oil Reserves (bn)",
+				legendText: "Expense",
+				showInLegend: true, 
+				dataPoints:[
+				{label: "2013", y: 262},
+				{label: "2014", y: 211},
+				{label: "2015", y: 175}
+				]
+			},
+			{
+				type: "column",	
+				name: "Oil Production (million/day)",
+				legendText: "Income",
+				axisYType: "secondary",
+				showInLegend: true,
+				dataPoints:[
+				{label: "2013", y: 2620},
+				{label: "2014", y: 2620},
+				{label: "2015", y: 2620}
+				]
+			},
+			{
+				type: "column",	
+				name: "Oil Production (million/day)",
+				legendText: "Savings",
+				axisYType: "secondary",
+				showInLegend: true,
+				dataPoints:[
+				{label: "2013", y: 11.15},
+				{label: "2014", y: 2.5},
+				{label: "2015", y: 3.6}
+				]
+			}
+			
+			],
+          legend:{
+            cursor:"pointer",
+            itemclick: function(e){
+              if (typeof(e.dataSeries.visible) === "undefined" || e.dataSeries.visible) {
+              	e.dataSeries.visible = false;
+              }
+              else {
+                e.dataSeries.visible = true;
+              }
+            	chart.render();
+            }
+          },
+        });
+
+chart.render();
+
+}
+</script>
+<script type="text/javascript" src="canvasjs.min.js"></script>
+</head>
+<body>
+	<div id="chartContainer" style="height: 300px; width: 50%;"></div>
+	<div>
+    <div id="chartContainer2" style="height: 400px; "></div>
+    </div>
+</div>
+	
+	
+</body>
+</html>
