@@ -41,7 +41,9 @@ OAUTH_SCOPE = 'https://www.googleapis.com/auth/drive'
 REDIRECT_URI = 'urn:ietf:wg:oauth:2.0:oob' #'http://localhost'
 
 # Create a credential storage object.  You pick the filename.
-storage = Storage(sys.path[0] + '/ACCESS_TOKEN')
+token_filePath = os.path.join(sys.path[0], 'ACCESS_TOKEN')
+#storage = Storage(sys.path[0] + '/ACCESS_TOKEN')
+storage = Storage(token_filePath)
 
 # Attempt to load existing credentials.  Null is returned if it fails.
 credentials = storage.get()
@@ -60,7 +62,6 @@ if not credentials:
 	# This Credentials has refresh and access tokens. This should be stored. Find out how.
 	storage.put(credentials)
 
-
 # Create an httplib2.Http object and authorize it with our credentials
 logging.info('Connected to Google Drive via existing token...')
 http = httplib2.Http()
@@ -77,19 +78,23 @@ resp, content = drive_service._http.request(downloadUrl)
 if resp.status == 200:
     #print 'Status: %s' % resp
     logging.info('Writing data from Google to local file...')
-    Gfile = open(sys.path[0] + DATA_INPUT_WORKBOOK_NAME, "wb")
+    gFileName = os.path.join(sys.path[0], DATA_INPUT_WORKBOOK_NAME)
+    #Gfile = open(sys.path[0] + DATA_INPUT_WORKBOOK_NAME, "wb")
+    Gfile = open(gFileName, "wb")
     Gfile.write(content)
     Gfile.close()
     print 'Downloaded the file from Google. Ready to crunch statistics...'
     logging.info('Downloaded the file from Google. Ready to crunch statistics...')
     
-    os.system('python ' + sys.path[0] + '/ExpenseCalc_nix.py')
+    mainPgm_filePath = os.path.join(sys.path[0], 'ExpenseCalc_nix.py')
+    #os.system('python ' + sys.path[0] + '/ExpenseCalc_nix.py')
+    os.system('python ' + mainPgm_filePath)
     logging.info('Calling data crunching program, ExpenseCalc_nix.py...')
 else:
     print 'An error occurred: %s' % resp
     logging.error('An error occurred during GDrive connection: %s' % resp)
 
-#os.remove('/home/tom/Desktop/Personal-budget.xls')
+#os.remove(gFileName)
 
 # def download_file(service, drive_file):
 #   """Download a file's content.

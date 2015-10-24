@@ -23,442 +23,226 @@
 #		Fixed the Income Bug calling as Bug1self. 											|
 # 1.6 - 29 January 2015																		|
 #		Created HTML reporting based on Canvas.js showing current year Pie Chart and 		|
-#       and multi-column bar chart to show trend.
+#       and multi-column bar chart to show trend.                                           |
+# 2.0 - 25 October 2015                                                                     |
+#       Rewritten the entire codebase to more concise and less code retaining all the       |
+#       functionality except for rev 1.1 w.r.t #. Not included in this revision.            |
 # -------------------------------------------------------------------------------------------
 
-import xlrd
-import xlwt 
-
-import datetime
-import sys, os
-import logging, subprocess
+import xlrd, xlwt
+import datetime, sys, os
+import logging, subprocess, webbrowser
 
 from itertools import groupby
 from operator import itemgetter
 
-# import matplotlib
-# matplotlib.use('module://mplh5canvas.backend_h5canvas')
-# from pylab import *
-import webbrowser
-
 # Config_ExpenCalc.py is a configuration file which should be in the current directory as this script
 from Config_ExpCalc import * 
 
-logging.basicConfig(filename='ExpnCalc.log', filemode='a', level=logging.DEBUG)
+class varSettings(object):
+	SCRIPT_PATH = sys.path[0]  # This will give the parent folder path of the current executing file. currently not used within the script.
 
-print "'" + sys.path[0] + "'"  # This will give the parent folder path of the current executing file. currently not used within the script.
-SCRIPT_PATH = sys.path[0]
+	# Input Workbook Name - DATA_INPUT_WORKBOOK_NAME variable present in Config_ExpenCalc.py 
+	INPUT_FILE=DATA_INPUT_WORKBOOK_NAME   #'Exp_Input.xls'     
 
-# Input Workbook Name - DATA_INPUT_WORKBOOK_NAME variable present in Config_ExpenCalc.py 
-INPUT_FILE=DATA_INPUT_WORKBOOK_NAME 
+	# Report File Name - EXPENCALC_REPORT variable present in Config_ExpenCalc.py
+	#REPORT_FILE=EXPENCALC_REPORT
 
-# Report File Name - EXPENCALC_REPORT variable present in Config_ExpenCalc.py
-#REPORT_FILE=EXPENCALC_REPORT
+	year = str(datetime.datetime.now().year) # year is returned in int hence typecast to string
+	D_Grph_Yearly_data = {}
 
-logging.info('Starting data crunching program...')
+	col_width = 256 * 20             # 20 characters wide
 
-if not (os.path.isfile(SCRIPT_PATH + INPUT_FILE)):
-	print "Input file - " + INPUT_FILE + ' not found.'
-	logging.critical("Input file - " + INPUT_FILE + ' not found.')
-	quit()
+	ezxf = xlwt.easyxf
+	heading_xf = ezxf('font: bold on; align: wrap on, vert centre, horiz center; pattern: pattern solid, fore-colour grey25')
+	##color_xf = ezxf('pattern: pattern solid, fore-colour ice_blue')
 
-year = str(datetime.datetime.now().year) # year is returned in int hence typecast to string
-D_Grph_Yearly_data = {}
+	style = xlwt.XFStyle()
+	style.num_format_str = '#,##0.00'
 
-col_width = 256 * 20             # 20 characters wide
-
-ezxf = xlwt.easyxf
-heading_xf = ezxf('font: bold on; align: wrap on, vert centre, horiz center; pattern: pattern solid, fore-colour grey25')
-##color_xf = ezxf('pattern: pattern solid, fore-colour ice_blue')
-
-style = xlwt.XFStyle()
-style.num_format_str = '#,##0.00'
-
-workbook = xlrd.open_workbook(SCRIPT_PATH + INPUT_FILE)
-wb = xlwt.Workbook()
-print "Number of sheets - " , workbook.nsheets
-
-# --- Logic to skip calculation on worksheet which has 'NO' keyword at the end and crunch stats for each sheet. -----
-for vInvSheet in workbook.sheets():
-    if vInvSheet.name.find("NO") != -1:
-        print "Skipping sheet - " , vInvSheet.name
-        logging.info("Skipping sheet - %s" , vInvSheet.name)
-    else:  
-	print "Sheet  - " , vInvSheet.name       
-	logging.info("Sheet  - %s" , vInvSheet.name) 
-	Testworksheet = workbook.sheet_by_name(vInvSheet.name)
-
-	#Testworksheet = workbook.sheet_by_name(year)  # datetime.datetime.now().year   --- returns the current year
-
-# ----- Start of Sorting entire excel based on Date column -----
-	logging.info('Start of Sorting...')
-    # Sorting of any column, just give the column number to target_column variable
-	target_column = 0 # Sort on Date field
-
-	data = [Testworksheet.row_values(i) for i in xrange(Testworksheet.nrows)] # returns list with rows with a list of columns
-
-	labels = data[0]  # Header row
-
-	data = data[1:]  # Complete data except the header
-
-# sort the data based on Date field
-    ##data.sort(key=lambda x: x[target_column])
-
-	data.sort(key = itemgetter(target_column))  # Complete sorted data in the variable 'data' based on the 'Date' column
-	# >>> itemgetter(1)('ABCDEFG')
-	# 'B'
-	# >>> itemgetter(1,3,5)('ABCDEFG')
-	# ('B', 'D', 'F')
-
-	logging.info('End of Sorting...')
-# ----- End of Sorting -----
-
-# ----- Calculation of Income -----
-	L_Income = []
-	D_Income = {}
-
-	D_SumOfUniqueTags = {}
 	D_Deduct = {}
 
-	logging.info('Starting to read each row and sum up values for each Tag even if its duplicate....')
+	L_userReportTags = ['Food', 'Travel', 'Bills']  # offering user defined TAG based report
+	D_grpTagReport = {}  # Empty Dictionary
 
-	for tag in data:
-	    #print tag
-	    date_tuple = xlrd.xldate_as_tuple(tag[0],workbook.datemode)
-	    now = datetime.datetime(date_tuple[0] , date_tuple[1], date_tuple[2])
+	def Read_Input(self):
+		self.Inp_filepath = os.path.join(VARs.SCRIPT_PATH, VARs.INPUT_FILE)
+		#print(self.Inp_filepath)
+		if not (os.path.isfile(self.Inp_filepath)):
+			print("Input file - " + self.Inp_filepath + ' not found. Please check your Config file...')
+			#logging.critical("Input file - " + INPUT_FILE + ' not found.')
+			sys.exit(0)
 
-	    if tag[3] == 'Income':   # Calculation of Income, appending to the Income list
-	        L_Income.append((now.month, tag[2]))  # tag[2] is the 'Price' variable, L_Income structure is [(Month, Value), (1, 2353.62), (1, 42), (2, 3042.11)]
-	        # logging.info(L_Income)
+		self.workbook = xlrd.open_workbook(self.Inp_filepath)   # To Read Excel
+		self.wb = xlwt.Workbook()								# To Write Excel
+	#print "Number of sheets - " , workbook.nsheets
 
-	    else:    # All the other tags except Income
-	        L_Rowtags = tag[3].split(',')    # split if you have multiple tags in one row. Split returns a list of items
-		L_Rowtags = [catg.strip() for catg in L_Rowtags] # Trimming spaces for each of the multiple tag after split done above
-   
-		DeductAmt = 0	# Clears previous stored amount
-		# below loop for Total of each unique Tag for entire input not based on month or date
-		for newTag in L_Rowtags:   
-            
-		    RetVal = newTag.find("#") 
-		    # Below If block along with DeductAmt and D_Deduct is part of 1.1 release
-		    if RetVal != -1:   # -1 means substring not found; if you get # in the tagname, then strip the # from the end of the tagname
-		        newTag = newTag[0:len(newTag)-1]
-			#print newTag
+def group_the_Tags_monthly(TAG, PRICE, MONTH):
+	''' This method groups the tag and totals the amount for that tag while noting the month.
+	    Going with this below code such that report based tags can be fetched from single dictionary
+		'''
+	if (TAG, MONTH) in VARs.D_grpTagReport:
+		VARs.D_grpTagReport[TAG, MONTH] += PRICE
+	else:
+		VARs.D_grpTagReport[TAG, MONTH] = PRICE
+
+def Crunch_Data(MSTR_DATA):
+	''' 
+	This function is used to crunch all the input data and store into respective dictionary variables to pass
+	those to the reporting functions.
+	'''
+	deduct_AMT = 0
+	D_Total_Monthly_Expense = {}
+	D_monthly_dedcut = {1:0,2:0,3:0,4:0,5:0,6:0,7:0,8:0,9:0,10:0,11:0,12:0}
+
+	for tag in MSTR_DATA:  # Loop on the sorted data row by row.
+		date_tuple = xlrd.xldate_as_tuple(tag[0],VARs.workbook.datemode)
+		rwDate = datetime.datetime(date_tuple[0] , date_tuple[1], date_tuple[2])
+
+		dMonth = rwDate.month
+		TAG = tag[3]
+		PRICE = float(tag[2])
+
+		if TAG.find(",") == -1:    # comma not found
+			group_the_Tags_monthly(TAG, PRICE, dMonth)
+
+		else:
+			L_Rowtags = TAG.split(',')  # get seperate tags
+			L_Rowtags = [catg.strip() for catg in L_Rowtags] # Trimming spaces for each of the multiple tag after split done above
+			#pdb.set_trace()
+			iter_Count = len(L_Rowtags) - 1
+			dupl_amt = (iter_Count * PRICE)
+			deduct_AMT = dupl_amt + deduct_AMT		# Keep a tab of total deduction bcz by splitting each of the tags have the same amount which is duplicate in calculation
 			
-			DeductAmt = float(DeductAmt) + float(tag[2])	 # tag[2] is the price 	
-			# D_Deduct dict variable holds the total of all expense tags for each month. This will hold those prices whose tag has # so that it is removed from calculation 	
-			if D_Deduct.has_key(now.month):
-			    D_Deduct[now.month] = float(D_Deduct[now.month]) + float(tag[2])
-			else:
-		            D_Deduct[now.month] = float(tag[2])
-            # Total of each unique Tag for entire input not based on month or date
-		    if D_SumOfUniqueTags.has_key((now.month, newTag)):     # if tags are present in dictionary sum the price
-			#print newTag , ' -- ', tag[2]
-			#print D_SumOfUniqueTags[(now.month, newTag)]
-		        D_SumOfUniqueTags[(now.month, newTag)] = float(D_SumOfUniqueTags[(now.month, newTag)]) + float(tag[2])
+			D_monthly_dedcut[dMonth] += dupl_amt 	# Keep a tab of monthly deduction 
+			
+			for tg in L_Rowtags:
+				group_the_Tags_monthly(tg, PRICE, dMonth)
 
-		    else:   # if new tags then add new tag to dictionary and
+	D_Monthly_Tag_Values = VARs.D_grpTagReport.copy()   # giving a logical name  {(Tag1, month):amt, (Tag2, month):amt}
+	#pdb.set_trace()
+	# Calculate Monthly Expense Total 
+	D_Total_Monthly_Expense = { n[1]:0 for n in VARs.D_grpTagReport.keys() }  # writing {month:0} with n[0]	
 
-                	D_SumOfUniqueTags[(now.month, newTag)] = float(tag[2])
+	# Calculate Total for the Tags based on monthly aggregate -- http://stackoverflow.com/questions/33252985/how-to-sum-values-from-a-python-dictionary-having-key-as-tuple
+	# writing {Tag:0} with k[0]
+	D_Total_Tag_Values = { k[0]:0 for k in VARs.D_grpTagReport.keys() }  # Get all keys by updating its value to 0 so it overwrites and gives unique key.
 
-##print D_SumOfUniqueTags.items()
+	for key in VARs.D_grpTagReport:	# Loop through the monthly values and add the value with the new dict value
+		D_Total_Tag_Values[key[0]] = D_Total_Tag_Values[key[0]] + VARs.D_grpTagReport[key]
+		D_Total_Monthly_Expense[key[1]] = D_Total_Monthly_Expense[key[1]] + VARs.D_grpTagReport[key]
+		#print(key, D_Total_Monthly_Expense[key[1]])
+	
+	#print(D_Total_Tag_Values)  # result is {'Bills': 1577.0399999999997, 'Food': 92.48}
+	# print(D_Total_Monthly_Expense)  # result is {'1': 157734, '2': 923453.48}
+	return (D_Monthly_Tag_Values, D_Total_Tag_Values, D_Total_Monthly_Expense, deduct_AMT, D_monthly_dedcut)
 
-# ------- Group the sorted output by date ---------
-	# The itertools.groupby() function takes a sequence and a key function, and returns an iterator that
-    # generates pairs. Each pair contains the result of key_function(each item) and another iterator containing
-    # all the items that shared that key result.
-
-    # L_Income structure is ('Month','Price'), group this below
-	# logging.info('Pls show me -- %s', str(D_Deduct))
-	#print D_Deduct
-	groups = groupby(L_Income, itemgetter(0)) # Hence, itemgetter[0] here means Month, 1st column
-# This was grouping of all Income based data based on date column.
-
-# ------- End of Grouping ---------
-# ---- Iterate the Income Group and get the sum of all individual incomes for a single month. -----
-	for key,value in groups:
-	    s = sum([ float(item[1]) for item in value ])
-	    D_Income[key] = s  # store the monthly(variable key) summed income(variable s) into dictionary to match later
-	    # logging.info('Ikey %s -- Ival %s', str(key), str(s))
-	    print "Income for month " , key , " is amount " , s
-	logging.info('End of Calculation of Income...')
-# ----- End of Calculate Income -----
-
-
-# ------- Group the sorted excel output minus the header done above in 'data' variable by date ---------
-
-	groups_Data = groupby(data, itemgetter(target_column))
-
-# ------- End of Grouping ---------
-
-# ------- Calculate Date wise Total --------
-	T_DailyTotal = () # Tuple to store pair of date and total expense
-	L_DailyTotal = []
-
-	for k1,v1 in groups_Data:
-	    s = sum([ float(item[2]) for item in v1 ]) # item[2] is Rate field
-	    date_tuple = xlrd.xldate_as_tuple(item[0],workbook.datemode)
-	    now = datetime.datetime(date_tuple[0] , date_tuple[1], date_tuple[2])
-    
-	    T_DailyTotal = item[0] , round(s,2) , now.month # item[0] is the date field, s is the daily total, month for this date
-	    #print T_DailyTotal
-	    L_DailyTotal.append(T_DailyTotal)
-
-# ------- End of Calculate Date wise Total --------
-
-# ------- Calculate Month wise Total --------
-
-		#ws = wb.add_sheet('SummaryExpense')
-	ws = wb.add_sheet(vInvSheet.name)
-	month_headings = ['JAN','FEB','MAR','APR','MAY','JUN','JUL','AUG','SEP','OCT','NOV','DEC','Total','%']
+def write_EXCEL_Report(vInvSheet, D_Monthly_Tag_Values, D_Total_Tag_Values, D_Total_Monthly_Expense, deduct_AMT, D_monthly_dedcut):
+	'''
+	This function accepts the dictionary variables and reads the required data to present it in Excel.
+	'''
+	style = VARs.style
+	ws = VARs.wb.add_sheet(vInvSheet.name)
+	month_headings = ['JAN','FEB','MAR','APR','MAY','JUN','JUL','AUG','SEP','OCT','NOV','DEC','Total','% of Inc']
 	rowx = 1
 	for colx, value in enumerate(month_headings):
-            ws.write(rowx, colx+1, value, heading_xf)
+            ws.write(rowx, colx+1, value, VARs.heading_xf)  # writing the headers to excel
 
-	ws.col(0).width = col_width # Column Width
+	ws.col(0).width = VARs.col_width # Column Width
+	# writing the headers to excel
 	ws.write(2,0,'INCOME')
-	ws.write(3,0,'TOTAL EXPN')
+	ws.write(3,0,'EXPENSE')
 	ws.write(4,0,'SAVINGS')
-
-	IncomeTotal = 0
-	TotalExpense = 0
-	TotalSavings = 0
 	
-	groups_DailyTot = groupby(L_DailyTotal, itemgetter(2)) # Group the L_DailyTotal list by month
-
-	# Fixed the Income bug, Bug1self, by checking, if income is available for the month, if not, return 0
-	# logging.info(D_Deduct)
-	# Calculating below monthly Expense, Income and Savings
-	# D_Deduct dict variable holds the total of all expense tags for each month 
-	for k,v in groups_DailyTot:
-	    
-	    s = sum([ item[1] for item in v ]) # item[1] is the daily total. Hence, variable s is the total of all daily total
-	    varMonth = k
-	    # logging.info('Emonth %s -- Eval %s', str(varMonth), str(s))
-	    # below If block is part of 1.1 release, this is to remove the price which has to be excluded based on # appended to tag
-	    if D_Deduct.has_key(k):
-	        varExpense = (s-D_Income.get(k, 0)) - D_Deduct.get(k)
-	        # logging.info('check-----')
-	    else:
-		varExpense = (s-D_Income.get(k, 0))
-	    
-            #print varExpense
-	    ws.write(2,k,D_Income.get(k, 0), style)  # Income
-	    IncomeTotal = IncomeTotal + D_Income.get(k, 0)
-
-	    ws.write(3,k,varExpense, style)     # TotalExpense
-	    TotalExpense = TotalExpense + varExpense
-
-	    saved = (D_Income.get(k, 0)- varExpense)
-
-	    ws.write(4,k,saved, style)          # Savings
-	    TotalSavings = TotalSavings + saved
-
-	    print varMonth , "th month Income =" , D_Income.get(k, 0), "Expense =" , varExpense, "Savings =" ,saved # income to be minus from expense
-	    # logging.info('click-----')
-
+	if 'income' in D_Total_Tag_Values: 
+		IncomeTotal = D_Total_Tag_Values['income']  # check if income is the only word, data cleansing required
+	else:
+		IncomeTotal = 0 
+	TotalExpense = sum(D_Total_Monthly_Expense.values()) - IncomeTotal - deduct_AMT   # This will sum all the values within the dict as it comprises {month:amount}
+	TotalSavings = IncomeTotal - TotalExpense
+	
+	# writing the above totals to excel
 	ws.write(2,13,IncomeTotal,style)   # Income Total
 	ws.write(3,13,TotalExpense,style)  # Expense Total
-	ws.write(4,13,TotalSavings,style)  # Savings Total
-
-	# --- Below if else block only to capture data for graph ----
-	# if len(D_Grph_Yearly_data)!= 0: # If not empty ,then add to the dict  
-	D_Grph_Yearly_data.update({str(vInvSheet.name):(IncomeTotal,TotalExpense,TotalSavings)}) 
-	# D_Grph_Yearly_data = D_Grph_Yearly_data + {str(vInvSheet.name):(IncomeTotal,TotalExpense,TotalSavings)}
-	# else:	
-		# If no data exist then create one entry
-		# D_Grph_Yearly_data = {str(vInvSheet.name):(IncomeTotal,TotalExpense,TotalSavings)}
-
-	print D_Grph_Yearly_data
-
-# ------- End of Calculate Month wise Total --------    
-
-	DupTag = [tags for mnth,tags in D_SumOfUniqueTags.keys()]
-	L_UniqueTag = list(set(DupTag)) # removes duplicate without considering Order.
-
-	row = 6
+	ws.write(4,13,TotalSavings,style)  # Savings Total	
+ 
+	# Print category list into Excel >>>>>>>>>
+	row = 4 
 	col = 0
 	percentTotal = 0
+	D_catg = {}
 
-	for Category in L_UniqueTag:  # Print category list into Excel
-	    ws.write(row,col,Category)
-	    catgTotal = 0
-    
-	    for mnth,tags in D_SumOfUniqueTags.keys():      # For each month, it will insert values for the selected category
-	        if Category == tags:
-		    ws.write(row,col+mnth,D_SumOfUniqueTags[(mnth, tags)], style) #Print values against category in appropriate month
-		    catgTotal = catgTotal + D_SumOfUniqueTags[(mnth, tags)]
-		            
-	    percentTotal = ( catgTotal / IncomeTotal ) * 100      # Calculate percent against total income for each category
-	    ws.write(row,13,catgTotal,style)
-	    ws.write(row,14,percentTotal,style)                     
-	    row = row+2
+	for mn in D_Total_Monthly_Expense:
+		# check if that month has income, if yes then deduct that amount from expense bcz income was also one of the tag for calculation
+		MINUS = D_monthly_dedcut[mn]
+		monthly_expense = D_Total_Monthly_Expense[mn] - MINUS
+
+		if ('income', mn) in D_Monthly_Tag_Values:
+			monthly_income = D_Monthly_Tag_Values['income',mn]
+			monthly_expense = monthly_expense - monthly_income  # Expense Tag Total minus any income for that month
+			monthly_savings = monthly_income - monthly_expense  
+
+			ws.write(2, col+mn, monthly_income, style)			 		 # Enter Income Tag for that month
+			ws.write(3, col+mn, monthly_expense, style)	 # Enter Expense Tag Total for that month minus any income
+			ws.write(4, col+mn, monthly_savings, style)			 		 # Enter Savings Tag for that month
+			
+			monthly_income = monthly_expense = monthly_savings = 0       # Clear Variable values
+		else:
+			ws.write(2, col+mn, 0, style)								 # Enter Income Tag as 0 for that month
+			ws.write(3, col+mn, monthly_expense, style)					 # Enter Expense Tag Total for that month
+			ws.write(4, col+mn, 0-monthly_expense, style)			 	 # Enter Savings Tag Total for that month
+			monthly_expense = 0
+
+	for catg, mnth in sorted(D_Monthly_Tag_Values):  # this will sort the dictionary based on key -- mnth is an integer
+		if catg != 'income':		# Don't print Income TAG
+			if catg not in D_catg:  # just a means to distinguish new Tags
+				row += 2 			# Leaving one row blank as styling
+				D_catg[catg] = 0 
+				
+				# ALL the below code runs once for a unique TAG
+				if IncomeTotal == 0:       # Cannot calculate percent of Income as it will be division by zero
+					percentTotal = "NA" 
+				else:
+					percentTotal = ( D_Total_Tag_Values[catg] / IncomeTotal ) * 100      # Calculate percent against total income for each category
+				ws.write(row, 13, D_Total_Tag_Values[catg], style)					 # Enter Tag Total for whole year
+				ws.write(row, 14, percentTotal, style)								 # Enter Percent of Income
+				ws.write(row, col, catg.title(), style)    							 # Enter Tags
+
+			ws.write(row, col+mnth, D_Monthly_Tag_Values[catg, mnth], style)	        # Enter Tag Value for that month
 
 	ws.panes_frozen = True
 	ws.horz_split_pos = 5
 	ws.vert_split_pos = 1
 
-wb.save(SCRIPT_PATH + '/ExpenseSummary' + year + '.xls')
-logging.info('END OF EXPN-CALC.')
+# ----------------------------  MAIN BLOCK ---------------------------------------
+VARs = varSettings()
+VARs.Read_Input()
 
-# --- HTML Reporting, expecting javascript file to be in the cwd ---
-grph_Col_year_count = len(D_Grph_Yearly_data)
-year = str(year)
-if grph_Col_year_count == 0:
-	html_str = """<!DOCTYPE HTML>
-		<html>
-		<head></head>
-		<body>
-		<h1>There is no Yearly data available..."</h1>
-		</body></html>"""
-else: 
-	pie_title_currYear = ' title:{text: "' + year + ' Income - ' + str(D_Grph_Yearly_data[year][0]) + '"},'  # Requirement to only see pie for current year, variable year always holds current year.
-	pie_datapoints = '{ y: ' + str(D_Grph_Yearly_data[year][1]) + ', name: "Expense", legendMarkerType: "square"}, { y: ' + str(D_Grph_Yearly_data[year][2]) + ', name: "Savings", legendMarkerType: "circle"} '
-	num_year = int(year)
-	Expense_label = ''
-	Savings_label = ''
-	Income_label = ''
-	for item_num in range(grph_Col_year_count):  
-		print item_num
-		if item_num < 2: # Restricting graphing data to previous 2 years only.
-			#if D_Grph_Yearly_data[str(num_year)][2] < 0
-			Expense_label = Expense_label + '{label: "' + str(num_year) + '", y: ' + str(D_Grph_Yearly_data[str(num_year)][1]) + '},'
-			Savings_label = Savings_label + '{label: "' + str(num_year) + '", y: ' + str(D_Grph_Yearly_data[str(num_year)][2]) + '},'
-			Income_label = Income_label + '{label: "' + str(num_year) + '", y: ' + str(D_Grph_Yearly_data[str(num_year)][0]) + '},'
-			num_year = num_year - 1  # Logic to select only the current year and previous 2 year data
-			logging.info("Collating graphing data...")
-		else:
-			break
-	
-	Expense_label = Expense_label[0:len(Expense_label)-1]   # To remove the trailing comma
-	Savings_label = Savings_label[0:len(Savings_label)-1]   # To remove the trailing comma
-	Income_label = Income_label[0:len(Income_label)-1]   # To remove the trailing comma
-			
-	html_str = """<!DOCTYPE HTML>
-		<html>
-		<head>
-		<script type="text/javascript">
-		window.onload = function () {
-			var chart = new CanvasJS.Chart("chartContainer",
-			{
-				""" + pie_title_currYear + """								
-				data: [
-				{
-					type: "pie",
-					indexLabelFontFamily: "Garamond",
-					indexLabelFontSize: 20,
-					indexLabelFontWeight: "bold",
-					startAngle:0,
-					indexLabelFontColor: "MistyRose",
-					indexLabelLineColor: "darkgrey",
-					indexLabelPlacement: "inside",
-					toolTipContent: "{name}: {y}",
-					showInLegend: true,
-					indexLabel: "#percent%",
-					dataPoints: [
-						""" + pie_datapoints + """
-					]
-				}
-			      ]
-			});
-			chart.render();
-			
-			var chart = new CanvasJS.Chart("chartContainer2",
-			{
-			theme: "theme2",
-                        animationEnabled: true,
-			title:{
-				text: "Income Vs Expense Vs Savings Trend",
-				fontSize: 30
-			},
-			toolTip: {
-				shared: true
-			},
-			axisX:{
-				title: "Interactive Report" ,
-				tickColor: "red",
-				tickLength: 15,
-				tickThickness: 3
-			},
+# --- Logic to skip calculation on worksheet which has 'NO' keyword at the end and crunch stats for each sheet. -----
+for vInvSheet in VARs.workbook.sheets():
+	if vInvSheet.name.find("NO") != -1:
+		print("Skipping sheet - " , vInvSheet.name)
+        
+	else:
+		Testworksheet = VARs.workbook.sheet_by_name(vInvSheet.name)
 
-			axisY: {
-				title: "GBP" ,
-				 tickLength: 15,
-				 tickColor: "DarkSlateBlue" ,
-				 tickThickness: 5
-				//valueFormatString:  "##,#0", // move comma to change formatting
-				//prefix: "$"
-			},
-			//axisY2: {
-				//title: "Great Britian Pounds"
-			//},
+	# ----- Start of Sorting entire excel based on Date column -----
+	    # Sorting of any column, just give the column number to target_column variable
+		target_column = 0 # Sort on Date field
+		# Convert the data into lowercase for easy Manipultation
+		data = [[ icell.lower() if isinstance(icell, unicode) else icell for icell in Testworksheet.row_values(i)] for i in range(Testworksheet.nrows)] # returns list with rows with a list of columns
+		#Header_labels = data[0]  # Header row
+		data = data[1:]  # Complete data except the header
+		data.sort(key = itemgetter(target_column))  # Complete sorted data in the variable 'data' based on the 'Date' column
+	# ----- End of Sorting -----
+				
+		(MonthlyTagValues, TotalTagValues, TotalMonthlyExpense, deduct_AMT, D_monthly_dedcut) = Crunch_Data(data)  # Replacing original code to crunch all tags
 
-			legend:{
-				verticalAlign: "top",
-				horizontalAlign: "center"
-			},
-			data: [ 
-			{
-				type: "column",	
-				name: "Expense",
-				legendText: "Expense",
-				showInLegend: true, 
-				dataPoints:[
-				""" + Expense_label + """
-				]
-			},
-			{
-				type: "column",	
-				name: "Income",
-				legendText: "Income",
-				showInLegend: true,
-				dataPoints:[
-				""" + Income_label + """
-				]
-			},
-			{
-				type: "column",	
-				name: "Savings",
-				legendText: "Savings",
-				//axisYType: "secondary",
-				showInLegend: true,
-				dataPoints:[
-				""" + Savings_label + """
-				]
-			}
-			
-			],
-          legend:{
-            cursor:"pointer",
-            itemclick: function(e){
-              if (typeof(e.dataSeries.visible) === "undefined" || e.dataSeries.visible) {
-              	e.dataSeries.visible = false;
-              }
-              else {
-                e.dataSeries.visible = true;
-              }
-            	chart.render();
-            }
-          },
-        });
+		write_EXCEL_Report(vInvSheet, MonthlyTagValues, TotalTagValues, TotalMonthlyExpense, deduct_AMT, D_monthly_dedcut)
 
-		chart.render();
+		VARs.D_grpTagReport = {}  # Reset_Variables
 
-		}
-		</script>
-		<script type="text/javascript" src="canvasjs.min.js"></script>
-		</head>
-		<body>
-			<div id="chartContainer" style="height: 300px; width: 50%;"></div>
-			<div>
-		    <div id="chartContainer2" style="height: 400px; "></div>
-		    </div>
-		</div>	
-		</body>
-		</html>
-		"""	
+save_filePath = os.path.join(VARs.SCRIPT_PATH, "Exp_Calc_Report_")
+VARs.wb.save(save_filePath + VARs.year + '.xls')
 
-Html_file = open(SCRIPT_PATH + '/Report.html',"w")
-Html_file.write(html_str)
-Html_file.close()
-webbrowser.open_new_tab(SCRIPT_PATH + '/Report.html')
+# ---------------------------- END OF MAIN BLOCK ---------------------------------------
