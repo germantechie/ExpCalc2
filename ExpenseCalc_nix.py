@@ -60,7 +60,7 @@ class varSettings(object):
 	style = xlwt.XFStyle()
 	style.num_format_str = '#,##0.00'
 
-	D_Deduct = {}
+	D_htmlTableData = {}
 
 	L_userReportTags = ['Food', 'Travel', 'Bills']  # offering user defined TAG based report
 	D_grpTagReport = {}  # Empty Dictionary
@@ -193,12 +193,32 @@ def write_EXCEL_Report(vInvSheet, D_Monthly_Tag_Values, D_Total_Tag_Values, D_To
 			ws.write(4, col+mn, 0-monthly_expense, style)			 	 # Enter Savings Tag Total for that month
 			monthly_expense = 0
 
+	HTML_rptTable = '<tr>'
+	htmlRpt_MNTH = 0
+	HTML_Total = ''
+	HTML_Percent = ''
 	for catg, mnth in sorted(D_Monthly_Tag_Values):  # this will sort the dictionary based on key -- mnth is an integer
 		if catg != 'income':		# Don't print Income TAG
 			if catg not in D_catg:  # just a means to distinguish new Tags
 				row += 2 			# Leaving one row blank as styling
 				D_catg[catg] = 0 
 				
+				if htmlRpt_MNTH != 0:   # to avoid creating empty row.
+					#print(vInvSheet.name, catg, htmlRpt_MNTH) 
+					while (htmlRpt_MNTH != 12):   # While loop will print blank td's for blank months.
+						HTML_rptTable = HTML_rptTable + '<td></td>'
+						htmlRpt_MNTH = htmlRpt_MNTH + 1
+					HTML_rptTable = HTML_rptTable + '<td>' + HTML_Total + '</td><td>' + HTML_Percent + '</td>' + '</tr><tr>'
+
+				HTML_rptTable = HTML_rptTable + '<td>' + catg.title() + '</td>'  # First Column should be Tag Name
+
+				# ---- MSG1 -- If new category does not have entry from Jan, then enter empty columns until this category has an entry.
+				cntMnth = mnth          				# mnth always starts from 1
+				while (cntMnth >= 2):   				# While loop will print blank td's for initial blank months.
+					HTML_rptTable = HTML_rptTable + '<td></td>'
+					cntMnth = cntMnth - 1
+				# ----- End MSG1 -------------------------------------------------------
+
 				# ALL the below code runs once for a unique TAG
 				if IncomeTotal == 0:       # Cannot calculate percent of Income as it will be division by zero
 					percentTotal = "NA" 
@@ -209,10 +229,350 @@ def write_EXCEL_Report(vInvSheet, D_Monthly_Tag_Values, D_Total_Tag_Values, D_To
 				ws.write(row, col, catg.title(), style)    							 # Enter Tags
 
 			ws.write(row, col+mnth, D_Monthly_Tag_Values[catg, mnth], style)	        # Enter Tag Value for that month
+			
+			# ---- MSG2 ------ To enter blank columns, if category does not have values for in between months. 
+			if htmlRpt_MNTH != 0:
+				mnth_diff = mnth - htmlRpt_MNTH
+				if mnth_diff > 1:
+					#fill empty td tags
+					for u in range(mnth_diff-1): 
+						HTML_rptTable = HTML_rptTable + '<td></td>' 
+			htmlRpt_MNTH = mnth  # To save the last month in the loop, based on this info, need to insert empty TD tags.
+			# ----End of MSG2 ------------------------------------------------------ 
+			
+			HTML_rptTable = HTML_rptTable + '<td>' + str(D_Monthly_Tag_Values[catg, mnth]) + '</td>'   # Enter the month's value for the category
+			
+			HTML_Total = str(D_Total_Tag_Values[catg])
+			HTML_Total = str(format(float(HTML_Total), ',.2f'))
+			HTML_Percent = str(round(percentTotal,2))
+
+	while (htmlRpt_MNTH != 12):   # While loop will print blank td's for blank months for last row.
+		HTML_rptTable = HTML_rptTable + '<td></td>'
+		htmlRpt_MNTH = htmlRpt_MNTH + 1
+
+	HTML_rptTable = HTML_rptTable + '<td>' + HTML_Total + '</td><td>' + HTML_Percent + '</td>' + '\n'
+	HTML_rptTable = HTML_rptTable + '</tr>'	
+	VARs.D_htmlTableData[vInvSheet.name] = HTML_rptTable   # Dicton{'2015_uk': 'html_data'} storing tabular data of each year in Global Class variable with Year (sheet name) as the key
 
 	ws.panes_frozen = True
 	ws.horz_split_pos = 5
 	ws.vert_split_pos = 1
+
+def write_HTML_Report():
+	'''
+	This function should help generate static html report.
+	'''
+	rptHEAD = ''' 
+	<!DOCTYPE>
+	<html>
+	  <head>
+	    <meta charset="utf-8">
+	    <title>Net Worth Visualizer</title>
+	    <meta name="viewport" content="width=device-width, initial-scale=1">
+	    
+	    <link rel="stylesheet" type="text/css" href="dist/css/bootstrap.css">
+	'''
+	rptHEAD_JS_static_start = '''
+	<script type="text/javascript">
+	      window.onload = function () {
+
+	        var chart = new CanvasJS.Chart("chartContainer1",
+	        {
+
+	          title:{
+	            text: "Expense Across Categories",
+	            fontFamily: "sans-serif",
+	            fontSize: 22
+	          },
+	                            animationEnabled: true,
+	          axisX:{
+
+	            gridColor: "Silver",
+	            tickColor: "silver",
+	            valueFormatString: "MMM/YY"
+
+	          },                        
+	          toolTip:{  shared:true
+	                            },
+	          theme: "theme3",
+	          axisY: {
+	            gridColor: "Silver",
+	            tickColor: "silver"
+	          },
+	          legend:{
+	            verticalAlign: "center",
+	            horizontalAlign: "right"
+	          },
+	          data: [
+	          {        
+	            type: "line",
+	            showInLegend: true,
+	            lineThickness: 2,
+	            name: "Food",
+	            markerType: "square",
+	            color: "#F08080",
+	            dataPoints: [
+	            { x: new Date(2014,7,01), y: 650 },
+	            { x: new Date(2014,8,01), y: 700 },
+	            { x: new Date(2014,9,01), y: 710 },
+	            { x: new Date(2014,10,01), y: 658 },
+	            { x: new Date(2014,11,01), y: 734 },
+	            { x: new Date(2015,0,01), y: 963 },
+	            { x: new Date(2015,1,01), y: 847 },
+	            { x: new Date(2015,2,01), y: 853 },
+	            { x: new Date(2015,3,01), y: 869 },
+	            { x: new Date(2015,4,01), y: 943 },
+	            { x: new Date(2015,5,01), y: 970 }
+	            ]
+	          },
+	          {        
+	            type: "line",
+	            showInLegend: true,
+	            name: "Travel",
+	            color: "#20B2AA",
+	            lineThickness: 2,
+
+	            dataPoints: [
+	            { x: new Date(2014,7,01), y: 510 },
+	            { x: new Date(2014,8,01), y: 560 },
+	            { x: new Date(2014,9,01), y: 540 },
+	            { x: new Date(2014,10,01), y: 558 },
+	            { x: new Date(2014,11,01), y: 544 },
+	            { x: new Date(2015,0,01), y: 693 },
+	            { x: new Date(2015,1,01), y: 657 },
+	            { x: new Date(2015,2,01), y: 663 },
+	            { x: new Date(2015,3,01), y: 639 },
+	            { x: new Date(2015,4,01), y: 673 },
+	            { x: new Date(2015,5,01), y: 660 }
+	            ]
+	          },
+	          {        
+	            type: "line",
+	            showInLegend: true,
+	            name: "Bills",
+	            color: "#26FG3A",
+	            lineThickness: 2,
+
+	            dataPoints: [
+	            { x: new Date(2014,7,01), y: 310 },
+	            { x: new Date(2014,8,01), y: 460 },
+	            { x: new Date(2014,9,01), y: 240 },
+	            { x: new Date(2014,10,01), y: 758 },
+	            { x: new Date(2014,11,01), y: 544 },
+	            { x: new Date(2015,0,01), y: 593 },
+	            { x: new Date(2015,1,01), y: 357 },
+	            { x: new Date(2015,2,01), y: 963 },
+	            { x: new Date(2015,3,01), y: 439 },
+	            { x: new Date(2015,4,01), y: 373 },
+	            { x: new Date(2015,5,01), y: 760 }
+	            ]
+	          }
+
+	          
+	          ],
+	              legend:{
+	                cursor:"pointer",
+	                itemclick:function(e){
+	                  if (typeof(e.dataSeries.visible) === "undefined" || e.dataSeries.visible) {
+	                    e.dataSeries.visible = false;
+	                  }
+	                  else{
+	                    e.dataSeries.visible = true;
+	                  }
+	                  chart.render();
+	                }
+	              }
+	        });
+
+	    chart.render();
+
+	      var chart = new CanvasJS.Chart("chart_NetWorth",
+	      {
+	        title:{
+	          text: null,
+	        },     
+	            animationEnabled: true,     
+	                    
+	        data: [
+	        {        
+	          type: "doughnut",
+	          startAngle: 100,                          
+	          toolTipContent: "{legendText}: {y} - <strong>#percent% </strong>",          
+	          showInLegend: false,
+	          dataPoints: [
+	            {y: 65899660, indexLabel: "Total Assets #percent%", legendText: "Total Assets" },
+	            {y: 60929152, indexLabel: "Total Liability #percent%", legendText: "Total Liability" } 
+	          ]
+	        }
+	        ]
+	      });
+	      chart.render();
+	      document.getElementById("ch_dough_center").innerHTML = "Net Worth 5.5 Lac";
+
+	      }
+	    </script>
+
+	</head>
+	'''
+
+	rptBody_1 = '''
+	<body>
+    <div class="jumbotron_Header"> <!-- Top Header -->
+      <h3 style="padding-left:20px; color:white;">Net Worth Visualizer</h3>
+      <section style="padding-right:20px;" class="pull-right">
+          <span class="label label-primary">Income <big><span style="font-size:medium">&#8377; 12,3953</big></span>
+          <span class="label label-success">Savings <span style="font-size:medium">&#8377; 12,3853</span></span>
+          <span class="label label-warning">Expense <span style="font-size:medium">&#8377; 6,874.56</span></span>
+      </section>
+    </div> 
+    
+    <div class="container-fluid"> <!-- Rest of the Body -->
+      <nav>  <!-- Navigation -->
+        <ul class="nav nav-pills">
+        	<li role="presentation" class="active"><a data-toggle="pill" href="#home">Home</a></li>
+        '''
+	
+	for ids in VARs.D_htmlTableData.keys():
+ 		rptBody_1 = rptBody_1 + '''
+    	<li role="presentation"><a data-toggle="pill" href="#menu_''' + ids + '''">''' + ids + '''</a></li>''' 
+          
+	rptBody_1 = rptBody_1 + '''      
+        </ul>
+      </nav>    
+
+      <div class="tab-content">   <!-- Tab Content tag should be only ONE.-->
+          <div id="home" class="tab-pane fade in active">     <!-- Home Contents Area -->
+            <p></p> 
+               <div class="row row-eq-height">
+                  <div class="col-xs-7">
+                     <p>
+                      <div id="chart_NetWorth" style="height: 300px; width: 100%;"></div>
+                      <div id="ch_dough_center" style="position:absolute;left:1px;top:15px;height:50%;width:100%;line-height:260px;text-align:center;color:black;font-size:16px;white-space: pre-wrap;">300</div>
+                    </p>
+                  </div>
+                  <!-- <div style="width:3px; height:250px; margin:20px 40px 40px 0px; background-color:#808187;"></div> -->
+                  <div class="col-xs-5"> <!-- style="background-color: #dedef8;box-shadow: inset 1px -1px 1px #444, inset -1px 1px 1px #144;" -->
+                      <div class="col-xs-6">  
+                        <h4 class="sub-header"><strong>Total Assets</strong></h4>
+                        <div class="table-responsive">
+                          <table class="table table-striped" style="font-family:Helvetica Neue, Helvetica, Arial, sans-serif; font-size: 12px;">
+                            <tbody>
+                              <tr>
+                                <td>Bank Savings</td>
+                                <td>Rs. 23,567</td>
+                              </tr>
+                               <tr>
+                                <td>Bank FD's</td>
+                                <td>Rs. 23,567</td>
+                              </tr>
+                              <tr>
+                                <td>Mutual Funds</td>
+                                <td>Rs. 23,567</td>
+                              </tr>
+                              <tr>
+                                <td>Gold</td>
+                                <td>Rs. 23,567</td>
+                              </tr>
+                              <tr>
+                                <td>CAR</td>
+                                <td>Rs. 23,567</td>
+                              </tr>
+                              <tr>
+                                <td>Personal Goods</td>
+                                <td>Rs. 23,567</td>
+                              </tr>
+                              <tr>
+                                <td>LIC</td>
+                                <td>Rs. 23,567</td>
+                              </tr>
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+                      <div class="col-xs-6">
+                        <h4 class="sub-header"><strong>Total Liability</strong></h4>
+                        <div class="table-responsive">
+                          <table class="table table-striped" style="font-family:Helvetica Neue, Helvetica, Arial, sans-serif; font-size: 12px;">
+                            <tbody>
+                              <tr>
+                                <td>Home Loan</td>
+                                <td>Rs. 23,567</td>
+                              </tr>
+                              <tr>
+                                <td>Flat Expense</td>
+                                <td>Rs. 23,567</td>
+                              </tr>
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+                  </div>  <!-- End of Line 134 and second half of home page-->
+               </div>
+            
+              <div class="row row-eq-height">
+                  <div class="col-xs-2">
+                    <p></p>
+                  </div>
+                  <div class="col-xs-8">
+                      <p>
+                          <div id="chartContainer1" style="height: 300px; width: 100%;"></div>
+                      </p>
+                  </div>
+                  <div class="col-xs-2">
+                    <p></p>
+                  </div>
+              </div> 
+
+          </div> <!-- End of Home Page Tab-->
+          '''
+ 	for ids in VARs.D_htmlTableData.keys():
+		rptBody_1 = rptBody_1 + '''<div id="menu_''' + ids + '''" class="tab-pane fade"> <!-- new Tab Area -->  '''
+		rptBody_1 = rptBody_1 + '''  
+            <h3>Menu 1</h3>
+            <p>Some content in menu 1.</p>
+            <table class="table table-striped">
+              <thead>
+                  <tr>
+                    <th>Category</th>
+                    <th>Jan</th>
+                    <th>Feb</th>
+                    <th>Mar</th>
+                    <th>Apr</th>
+                    <th>May</th>
+                    <th>Jun</th>
+                    <th>Jul</th>
+                    <th>Aug</th>
+                    <th>Sep</th>
+                    <th>Oct</th>
+                    <th>Nov</th>
+                    <th>Dec</th>
+                    <th>Total</th>
+                    <th>% Income</th>
+                  </tr>
+              </thead>
+              <tbody>
+			'''
+		rptBody_1 =  rptBody_1 + VARs.D_htmlTableData[ids]
+		rptBody_1 =  rptBody_1 + '''</tbody>
+            </table>
+          </div>
+          '''
+
+
+	rptTest_Last = '''
+
+      </div>
+    </div>
+	   <script src="dist/js/jquery.min.js"></script>
+     <script src="dist/js/bootstrap.min.js"></script>
+     <script src="dist/js/canvasjs.min.js"></script>
+
+  </body>
+</html>
+	'''
+	fo = open(os.path.join(VARs.SCRIPT_PATH, "HTML_Report.html"), "w")
+	fo.write(rptHEAD + rptHEAD_JS_static_start + rptBody_1 + rptTest_Last)
+	fo.close()
 
 # ----------------------------  MAIN BLOCK ---------------------------------------
 VARs = varSettings()
@@ -245,4 +605,5 @@ for vInvSheet in VARs.workbook.sheets():
 save_filePath = os.path.join(VARs.SCRIPT_PATH, "Exp_Calc_Report_")
 VARs.wb.save(save_filePath + VARs.year + '.xls')
 
+write_HTML_Report()
 # ---------------------------- END OF MAIN BLOCK ---------------------------------------
