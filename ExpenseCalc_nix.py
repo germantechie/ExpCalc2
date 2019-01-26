@@ -163,9 +163,9 @@ def write_EXCEL_Report(vInvSheet, D_Monthly_Tag_Values, D_Total_Tag_Values, D_To
 	TotalSavings = IncomeTotal - TotalExpense
 	
 	if IncomeTotal == 0:
-    	SavingsPercent = 0.00
-    else:
-    	SavingsPercent = (TotalSavings/IncomeTotal)*100
+		SavingsPercent = 0.00
+	else:
+		SavingsPercent = (TotalSavings/IncomeTotal)*100
     
 	# writing the above totals to excel
 	ws.write(2,13,IncomeTotal,style)   # Income Total
@@ -252,9 +252,9 @@ def write_EXCEL_Report(vInvSheet, D_Monthly_Tag_Values, D_Total_Tag_Values, D_To
 			HTML_Total = str(D_Total_Tag_Values[catg])
 			HTML_Total = str(format(float(HTML_Total), ',.2f'))
 			if percentTotal == "NA":
-            	HTML_Percent = "NA"
-            else:            
-            	HTML_Percent = str(round(percentTotal,2))
+				HTML_Percent = "NA"
+			else:
+				HTML_Percent = str(round(percentTotal,2))
 
 	while (htmlRpt_MNTH != 12):   # While loop will print blank td's for blank months for last row.
 		HTML_rptTable = HTML_rptTable + '<td></td>'
