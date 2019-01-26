@@ -27,6 +27,7 @@
 # 2.0 - 25 October 2015                                                                     |
 #       Rewritten the entire codebase to more concise and less code retaining all the       |
 #       functionality except for rev 1.1 w.r.t #. Not included in this revision.            |
+# All further versions will be through Git.                                                 |
 # -------------------------------------------------------------------------------------------
 
 import xlrd, xlwt
@@ -161,10 +162,16 @@ def write_EXCEL_Report(vInvSheet, D_Monthly_Tag_Values, D_Total_Tag_Values, D_To
 	TotalExpense = sum(D_Total_Monthly_Expense.values()) - IncomeTotal - deduct_AMT   # This will sum all the values within the dict as it comprises {month:amount}
 	TotalSavings = IncomeTotal - TotalExpense
 	
+	if IncomeTotal == 0:
+    	SavingsPercent = 0.00
+    else:
+    	SavingsPercent = (TotalSavings/IncomeTotal)*100
+    
 	# writing the above totals to excel
 	ws.write(2,13,IncomeTotal,style)   # Income Total
 	ws.write(3,13,TotalExpense,style)  # Expense Total
 	ws.write(4,13,TotalSavings,style)  # Savings Total	
+	ws.write(4,14,SavingsPercent,style)  # Savings Percent of Income
  
 	# Print category list into Excel >>>>>>>>>
 	row = 4 
@@ -244,7 +251,10 @@ def write_EXCEL_Report(vInvSheet, D_Monthly_Tag_Values, D_Total_Tag_Values, D_To
 			
 			HTML_Total = str(D_Total_Tag_Values[catg])
 			HTML_Total = str(format(float(HTML_Total), ',.2f'))
-			HTML_Percent = str(round(percentTotal,2))
+			if percentTotal == "NA":
+            	HTML_Percent = "NA"
+            else:            
+            	HTML_Percent = str(round(percentTotal,2))
 
 	while (htmlRpt_MNTH != 12):   # While loop will print blank td's for blank months for last row.
 		HTML_rptTable = HTML_rptTable + '<td></td>'
